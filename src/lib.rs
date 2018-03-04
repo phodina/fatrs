@@ -6,6 +6,51 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::io::prelude::*;
 
+struct FATEntry {
+    filename: String,
+    ext: String,
+    attributes: u8,
+    modify_time: u16,
+    modify_date: u16,
+    starting_cluster: u16,
+    file_size: u32,
+}
+
+impl FATEntry {
+    fn new(data: &[u8]) -> Option<FATEntry> {
+        match data[0] {
+            // Unused entry
+            0x00 => return None,
+            // Deleted entry
+            0x45 => (),
+            // File starting with 0xe5
+            0x05 => (),
+            // Directory
+            0x2e => (),
+            _ => (),
+        }
+
+        let filename = String::from_utf8(data[0..8].to_vec()).unwrap();
+        let ext = String::from_utf8(data[8..11].to_vec()).unwrap();
+
+        Some(FATEntry {
+            filename: filename,
+            ext: ext,
+            attributes: data[11],
+            modify_time: LittleEndian::read_u16(&data[21..23]),
+            modify_date: LittleEndian::read_u16(&data[23..25]),
+            starting_cluster: LittleEndian::read_u16(&data[25..27]),
+            file_size: LittleEndian::read_u32(&data[27..31]),
+        })
+    }
+
+    fn display(&self) {
+        println!("Filename: {} Extension: {}", self.filename, self.ext);
+        println!("Modified: {} {}", self.modify_time, self.modify_date);
+        println!("Start: {} Size: {}", self.starting_cluster, self.file_size);
+    }
+}
+
 struct BootSector {
     jmp: [u8; 3],
     oem: String,
@@ -161,6 +206,24 @@ fn open_fatfs(img: PathBuf) {
 
             let boot_sector = BootSector::new(&buffer);
             boot_sector.display();
+
+            println!("Seek to root dir...");
+            let skip = (boot_sector.reserved_sectors as i64 - 1
+                + boot_sector.fat_size_sectors as i64 * boot_sector.number_of_fats as i64)
+                * boot_sector.sector_size as i64;
+            file.seek(SeekFrom::Current(skip)).unwrap();
+
+            for j in 0..boot_sector.root_dir_entries {
+                let mut buffer = [0u8; 32];
+                file.read(&mut buffer).unwrap();
+
+                let entry = FATEntry::new(&buffer);
+                match entry {
+                    Some(entry) => entry.display(),
+                    None => (),
+                }
+            }
+
             break;
         }
     }
