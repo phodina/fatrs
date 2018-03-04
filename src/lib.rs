@@ -6,8 +6,97 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::io::prelude::*;
 
+struct BootSector {
+    jmp: [u8; 3],
+    oem: String,
+    sector_size: u16,
+    sectors_per_cluster: u8,
+    reserved_sectors: u16,
+    number_of_fats: u8,
+    root_dir_entries: u16,
+    total_sectors_short: u16,
+    media_descriptor: u8,
+    fat_size_sectors: u16,
+    sectors_per_track: u16,
+    number_of_heads: u16,
+    hidden_sectors: u32,
+    total_sectors_long: u32,
+
+    drive_number: u8,
+    current_head: u8,
+    boot_signature: u8,
+    volume_id: u32,
+    volume_label: [u8; 11],
+    fs_type: [u8; 8],
+    boot_sector_signature: u16,
+}
+
+impl BootSector {
+    fn new(data: &[u8]) -> BootSector {
+        let mut volume_label = [0u8; 11];
+        volume_label.copy_from_slice(&data[43..54]);
+
+        let mut fs_type = [0u8; 8];
+        fs_type.copy_from_slice(&data[54..62]);
+
+        let oem = String::from_utf8(data[3..11].to_vec()).unwrap();
+
+        BootSector {
+            jmp: [data[2], data[1], data[0]],
+            oem: oem,
+            sector_size: LittleEndian::read_u16(&data[11..13]),
+            sectors_per_cluster: data[13],
+            reserved_sectors: LittleEndian::read_u16(&data[14..16]),
+            number_of_fats: data[16],
+            root_dir_entries: LittleEndian::read_u16(&data[17..19]),
+            total_sectors_short: LittleEndian::read_u16(&data[19..21]),
+            media_descriptor: data[21],
+            fat_size_sectors: LittleEndian::read_u16(&data[22..24]),
+            sectors_per_track: LittleEndian::read_u16(&data[24..26]),
+            number_of_heads: LittleEndian::read_u16(&data[26..28]),
+            hidden_sectors: LittleEndian::read_u32(&data[28..32]),
+            total_sectors_long: LittleEndian::read_u32(&data[32..36]),
+
+            drive_number: data[36],
+            current_head: data[37],
+            boot_signature: data[38],
+            volume_id: LittleEndian::read_u32(&data[39..43]),
+            volume_label: volume_label,
+            fs_type: fs_type,
+            boot_sector_signature: LittleEndian::read_u16(&data[510..512]),
+        }
+    }
+
+    fn display(&self) {
+        println!(
+            "Jump code: 0x{:x}:0x{:x}:0x{:x}",
+            self.jmp[2], self.jmp[1], self.jmp[0]
+        );
+        println!("OEM: {}", self.oem);
+        println!("Sector size: {}", self.sector_size);
+        println!("Sectors per cluster: {}", self.sectors_per_cluster);
+        println!("Reserved sectors: {}", self.reserved_sectors);
+        println!("Number of FATs: {}", self.number_of_fats);
+        println!("Root dir entries: {}", self.root_dir_entries);
+        println!("Total sectors short: {}", self.total_sectors_short);
+        println!("Media descriptor: 0x{:x}", self.media_descriptor);
+        println!("FAT size sectors: {}", self.fat_size_sectors);
+        println!("Sectors per track: {}", self.sectors_per_track);
+        println!("Number of heads: {}", self.number_of_heads);
+        println!("Hidden sectors: {}", self.hidden_sectors);
+        println!("Total sectors long: {}", self.total_sectors_long);
+        println!("Drive number: 0x{:x}", self.drive_number);
+        println!("Current head: 0x{:x}", self.current_head);
+        println!("Boot signature: 0x{:x}", self.boot_signature);
+        println!("Volume id: 0x{:x}", self.volume_id);
+        println!("Volume label: {:?}", self.volume_label);
+        println!("Filesystem type: {:?}", self.fs_type);
+        println!("Bootsector signature: 0x{:x}", self.boot_sector_signature);
+    }
+}
+
 struct PartitionEntry {
-    first_byte: u8,
+    pub first_byte: u8,
     start_chs: [u8; 3],
     partition_type: u8,
     end_chs: [u8; 3],
@@ -60,6 +149,20 @@ fn open_fatfs(img: PathBuf) {
 
         let partition = PartitionEntry::new(&buffer);
         partition.display();
+
+        if partition.partition_type == 0x6 {
+            println!("Found partition. Seek to first sector...");
+
+            file.seek(SeekFrom::Start(512u64 * partition.start_sector as u64))
+                .unwrap();
+
+            let mut buffer = [0u8; 512];
+            file.read(&mut buffer).unwrap();
+
+            let boot_sector = BootSector::new(&buffer);
+            boot_sector.display();
+            break;
+        }
     }
 }
 
