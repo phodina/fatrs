@@ -5,3 +5,4 @@ authors = ["Petr Hodina <hodinapetr46@gmail.com>"]
 
 [dependencies]
 byteorder = "1.2.1"
+chrono = "0.4.0"

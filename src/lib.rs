@@ -1,5 +1,7 @@
 extern crate byteorder;
+extern crate chrono;
 
+use chrono::{NaiveDate, NaiveDateTime};
 use byteorder::{ByteOrder, LittleEndian};
 use std::io::{Read, SeekFrom};
 use std::fs::File;
@@ -10,8 +12,7 @@ struct FATEntry {
     filename: String,
     ext: String,
     attributes: u8,
-    modify_time: u16,
-    modify_date: u16,
+    modify_datetime: NaiveDateTime,
     starting_cluster: u16,
     file_size: u32,
 }
@@ -33,21 +34,37 @@ impl FATEntry {
         let filename = String::from_utf8(data[0..8].to_vec()).unwrap();
         let ext = String::from_utf8(data[8..11].to_vec()).unwrap();
 
+        let year: i32 = 1980 as i32 + (LittleEndian::read_u16(&data[24..26]) >> 9) as i32;
+        let month = LittleEndian::read_u16(&data[24..26]) >> 5 & 0xf;
+        let day = LittleEndian::read_u16(&data[24..26]) & 0x1f;
+
+        let hour = LittleEndian::read_u16(&data[22..24]) >> 11;
+        let min = LittleEndian::read_u16(&data[22..24]) >> 5 & 0x3f;
+        let sec = (LittleEndian::read_u16(&data[22..24]) & 0x1f) << 1;
+
+        let modify = NaiveDate::from_ymd(year, month as u32, day as u32).and_hms(
+            hour as u32,
+            min as u32,
+            sec as u32,
+        );
+
         Some(FATEntry {
             filename: filename,
             ext: ext,
             attributes: data[11],
-            modify_time: LittleEndian::read_u16(&data[21..23]),
-            modify_date: LittleEndian::read_u16(&data[23..25]),
-            starting_cluster: LittleEndian::read_u16(&data[25..27]),
-            file_size: LittleEndian::read_u32(&data[27..31]),
+            modify_datetime: modify,
+            starting_cluster: LittleEndian::read_u16(&data[26..28]),
+            file_size: LittleEndian::read_u32(&data[28..32]),
         })
     }
 
     fn display(&self) {
         println!("Filename: {} Extension: {}", self.filename, self.ext);
-        println!("Modified: {} {}", self.modify_time, self.modify_date);
-        println!("Start: {} Size: {}", self.starting_cluster, self.file_size);
+        println!("Modified: {}", self.modify_datetime);
+        println!(
+            "Start: 0x{:x} Size: {}",
+            self.starting_cluster, self.file_size
+        );
     }
 }
 
