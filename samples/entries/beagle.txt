@@ -1,0 +1,16 @@
+We miss the days when everything had daughterboards. Now, Arduinos have shields and Raspberry Pis have hats. The BeagleBone has capes. Whatever. However, 
+regardless of the name, the open source BeagleWire cape/shield/hat/daughterboard connects to a BeagleBone and provides a Lattice iCE40HX FPGA, some support 
+hardware, and common I/O connectors like Pmod and Grove. You can see a video about the board below.
+
+In addition to the FPGA, the board contains a EEPROM, RAM, flash memory, an oscillator, and a few buttons, switches and LEDs. The buttons even feature hardware 
+debouncing. The parts list and design files are all available and — depending on a successful crowdfunding campaign — you might be able to buy one for $75 in the 
+future.
+
+The board is configured to communicate over the 100 MHz 16-bit GPMC port. Linux software and example drivers are available so it should be fairly simple to get the 
+FPGA and CPU talking to each other for your own purposes.
+
+If you decide to build your own, there’s a one-click button that will populate a DigiKey cart for you with most of the components. Although the DigiKey site 
+complained about an error, it did seem to order 24 of the 26 components and the total came to just over $50. Of course, you’d still need to source the missing 
+parts and the board.
+
+We’ve talked about the Lattice iCE FPGAs quite a bit in the past. Not only do you have our tutorial videos, but there are plenty of others, too.
