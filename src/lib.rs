@@ -7,6 +7,7 @@ use std::io::{Read, SeekFrom};
 use std::fs::File;
 use std::path::PathBuf;
 use std::io::prelude::*;
+use std::str;
 
 struct FATEntry {
     filename: String,
@@ -197,6 +198,28 @@ impl PartitionEntry {
     }
 }
 
+fn read_file(
+    file: &mut File,
+    fat_start: u32,
+    data_start: u32,
+    cluster_size: u32,
+    cluster: u16,
+    file_size: u32,
+) {
+    file.seek(SeekFrom::Start(
+        (data_start + cluster_size as u32 * (cluster as u32 - 2 as u32)) as u64,
+    )).unwrap();
+
+    let mut buffer = [0u8; 512];
+
+    file.read(&mut buffer).unwrap();
+
+    println!("FAT: {:x}, DATA: {:x}", fat_start, data_start);
+
+    let data = str::from_utf8(&buffer).unwrap();
+    println!("Data: {:?}", data);
+}
+
 fn open_fatfs(img: PathBuf) {
     let mut file = File::open(img).unwrap();
 
@@ -230,17 +253,43 @@ fn open_fatfs(img: PathBuf) {
                 * boot_sector.sector_size as i64;
             file.seek(SeekFrom::Current(skip)).unwrap();
 
+            let mut entries = vec![];
+
             for j in 0..boot_sector.root_dir_entries {
                 let mut buffer = [0u8; 32];
                 file.read(&mut buffer).unwrap();
 
                 let entry = FATEntry::new(&buffer);
                 match entry {
-                    Some(entry) => entry.display(),
+                    Some(entry) => {
+                        entry.display();
+                        entries.push(entry);
+                    }
                     None => (),
                 }
             }
 
+            println!(
+                "Root dir: {:x}",
+                512u32 * (partition.start_sector + 2)
+                    + boot_sector.fat_size_sectors as u32 * boot_sector.number_of_fats as u32
+                        * boot_sector.sector_size as u32
+            );
+            for entry in entries {
+                println!("Entry: {} {}", entry.filename, entry.starting_cluster);
+
+                read_file(
+                    &mut file,
+                    512u32 * (partition.start_sector + 2) as u32,
+                    512u32 * (partition.start_sector + 2)
+                        + boot_sector.fat_size_sectors as u32 * boot_sector.number_of_fats as u32
+                            * boot_sector.sector_size as u32
+                        + boot_sector.root_dir_entries as u32 * 32,
+                    boot_sector.sector_size as u32 * boot_sector.sector_size as u32,
+                    entry.starting_cluster,
+                    entry.file_size,
+                );
+            }
             break;
         }
     }
